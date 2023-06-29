@@ -1,0 +1,18 @@
+[package]
+name = "trlevin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "trlevin"
+path = "src/lib.rs"
+
+[[bin]]
+name = "trlevin-simple-toy-puzzle"
+path = "toys/simple_move_puzzle.rs"
+
+[features]
+toys = []
+
+[dependencies]
+ordered-float = "3"
