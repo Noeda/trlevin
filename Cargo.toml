@@ -10,6 +10,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "trlevin-simple-toy-puzzle"
 path = "toys/simple_move_puzzle.rs"
+required-features = ["toys"]
 
 [features]
 toys = []
