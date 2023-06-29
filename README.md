@@ -6,6 +6,8 @@ This is a Rust implementation of
 
 https://arxiv.org/pdf/2305.16945.pdf
 
+(This project and I am not affiliated with the people who wrote the paper)
+
 Heavily WIP.
 
 Check out toys/simple\_move\_puzzle.rs for a very simple proof of concept that
