@@ -147,8 +147,11 @@ impl<T: PartialEq, Action> PartialEq for WorkItem<T, Action> {
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LevinSearchSolution<A, B> {
-    Path(Vec<(A, B)>, A),
+    Path(Vec<(A, B)>, A, NodeExpansions),
 }
+
+/// How many times we had to traverse to a fresh new state?
+pub type NodeExpansions = usize;
 
 /// Given a Levin Tree Search model, executes a search with given budget.
 ///
@@ -214,7 +217,11 @@ where
             let mut result_path: Vec<(Env::State, Env::Action)> = vec![];
             let last_state: Env::State = node_states[work_item.state_idx].0.clone();
             if work_item.action.is_none() {
-                return Some(LevinSearchSolution::Path(result_path, last_state));
+                return Some(LevinSearchSolution::Path(
+                    result_path,
+                    last_state,
+                    expansions,
+                ));
             }
             let mut backtrack_state_idx: usize = work_item.state_idx;
             loop {
@@ -233,7 +240,11 @@ where
                 unreachable!();
             }
             result_path.reverse();
-            return Some(LevinSearchSolution::Path(result_path, last_state));
+            return Some(LevinSearchSolution::Path(
+                result_path,
+                last_state,
+                expansions,
+            ));
         }
 
         let mut new_state: Env::State = node_states[work_item.state_idx].0.clone();

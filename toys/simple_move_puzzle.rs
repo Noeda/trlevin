@@ -125,8 +125,9 @@ fn main() {
         let mut gstate = gradient.new_gradient_state();
         println!("{:?}", params);
         match levin_search(&env, initial_state.clone(), &params, Some(1000000)) {
-            Some(LevinSearchSolution::Path(path, _final_state)) => {
+            Some(LevinSearchSolution::Path(path, _final_state, budget_consumed)) => {
                 println!("Path len={:?}", path.len());
+                println!("Used budget={:?}", budget_consumed);
                 let loss = levin_loss(&params, &env, &path);
                 past_solutions.push(path);
                 println!("Loss={}", loss);
