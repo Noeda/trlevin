@@ -34,6 +34,7 @@ impl Enumerable for Move {
 
 impl ContextModelable for Environment {
     type Action = Move;
+    type Context = usize;
     type State = State;
 
     fn is_solution(&self, state: &Self::State) -> bool {

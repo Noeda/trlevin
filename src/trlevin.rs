@@ -10,6 +10,7 @@ pub use ordered_float::OrderedFloat;
 /// with it.
 pub trait ContextModelable {
     type Action: Enumerable;
+    type Context: Enumerable;
     type State;
 
     /// Return true if some state is considered a solution.
@@ -31,11 +32,9 @@ pub trait ContextModelable {
         new_state: &mut Self::State,
     );
 
-    // TODO: actions uses the usize thing, make contexts use that too.
-
     /// Given an environment and state, fill a vector of integers that identifh the currently
     /// active contexes. The vector is always passed as an empty vector.
-    fn active_contexts(&self, state: &Self::State, active_contexts: &mut Vec<usize>);
+    fn active_contexts(&self, state: &Self::State, active_contexts: &mut Vec<Self::Context>);
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -182,6 +181,7 @@ where
     node_states.push((initial_state, None, None));
 
     let mut active_contexts: Vec<usize> = vec![];
+    let mut active_contexts_high_level: Vec<Env::Context> = vec![];
     let mut possible_actions: Vec<Env::Action> = vec![];
 
     let nactions: usize = context_parameters.context_parameters[0][0].len();
@@ -276,8 +276,12 @@ where
         let new_state: &Env::State = &node_states.last().unwrap().0;
 
         // What contexts are active?
+        active_contexts_high_level.truncate(0);
+        env.active_contexts(new_state, &mut active_contexts_high_level);
         active_contexts.truncate(0);
-        env.active_contexts(new_state, &mut active_contexts);
+        for ctx in active_contexts_high_level.drain(0..) {
+            active_contexts.push(ctx.to_number());
+        }
         assert_eq!(active_contexts.len(), nctx_mutexes);
 
         // And which actions can be done?
@@ -398,7 +402,7 @@ where
     let mut result: T = T::from_usize(path.len());
 
     let mut possible_actions = Vec::new();
-    let mut ctxs = Vec::new();
+    let mut ctxs: Vec<Env::Context> = Vec::new();
 
     let c: &[Vec<Vec<T>>] = &context_parameters.context_parameters;
 
@@ -411,9 +415,10 @@ where
         for act in possible_actions.drain(0..) {
             let mut result3: T = T::zero();
             for (ctx_mutex_idx, ctx) in ctxs.iter().enumerate() {
+                let ctx = ctx.to_number();
                 // accum = accum + B(ctx, possible action) - B(ctx, taken action)
-                let possible_action_param: &T = &c[ctx_mutex_idx][*ctx][act.to_number()];
-                let next_action_param: &T = &c[ctx_mutex_idx][*ctx][action.to_number()];
+                let possible_action_param: &T = &c[ctx_mutex_idx][ctx][act.to_number()];
+                let next_action_param: &T = &c[ctx_mutex_idx][ctx][action.to_number()];
                 result3.inplace_add(possible_action_param);
                 result3.inplace_sub(next_action_param);
             }
@@ -536,14 +541,15 @@ pub fn loss_gradient<T, Env>(
 
             let mut result3: T = T::zero();
             for (ctx_mutex_idx, ctx) in ctxs.iter().enumerate() {
+                let ctx = ctx.to_number();
                 // accum = accum + B(ctx, possible action) - B(ctx, taken action)
-                let possible_action_param: &T = &c[ctx_mutex_idx][*ctx][act.to_number()];
-                let next_action_param: &T = &c[ctx_mutex_idx][*ctx][action.to_number()];
+                let possible_action_param: &T = &c[ctx_mutex_idx][ctx][act.to_number()];
+                let next_action_param: &T = &c[ctx_mutex_idx][ctx][action.to_number()];
                 result3.inplace_add(possible_action_param);
                 result3.inplace_sub(next_action_param);
 
-                g_tmp2[ctx_mutex_idx][*ctx][act.to_number()].inplace_add(&T::one());
-                g_tmp2[ctx_mutex_idx][*ctx][action.to_number()].inplace_sub(&T::one());
+                g_tmp2[ctx_mutex_idx][ctx][act.to_number()].inplace_add(&T::one());
+                g_tmp2[ctx_mutex_idx][ctx][action.to_number()].inplace_sub(&T::one());
             }
             result3 = result3.exp();
             result2.inplace_add(&result3);
