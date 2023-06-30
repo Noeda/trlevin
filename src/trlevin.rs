@@ -153,6 +153,85 @@ pub enum LevinSearchSolution<A, B> {
 /// How many times we had to traverse to a fresh new state?
 pub type NodeExpansions = usize;
 
+/// Given a Levin Tree Search model, runs the learned policy, without backtracking based on given
+/// contexts.
+pub fn levin_sample<Env: ContextModelable, T: ContextModelNumber>(
+    env: &Env,
+    state: &Env::State,
+    context_parameters: &ContextModelParameters<T>,
+) -> Option<Env::Action>
+where
+    Env::Action: Clone,
+{
+    let mut active_contexts: Vec<usize> = vec![];
+    let mut possible_actions: Vec<Env::Action> = vec![];
+    let mut active_contexts_high_level: Vec<Env::Context> = vec![];
+    let nactions: usize = context_parameters.context_parameters[0][0].len();
+    let nctx_mutexes: usize = context_parameters.context_parameters.len();
+
+    env.possible_actions(state, &mut possible_actions);
+    if possible_actions.is_empty() {
+        return None;
+    }
+    env.active_contexts(state, &mut active_contexts_high_level);
+    active_contexts.truncate(0);
+    for ctx in active_contexts_high_level.drain(0..) {
+        active_contexts.push(ctx.to_number());
+    }
+    assert_eq!(active_contexts.len(), nctx_mutexes);
+
+    let mut pcs: Vec<T> = vec![];
+    compute_pcs::<T, Env>(
+        env,
+        &mut pcs,
+        &possible_actions,
+        &active_contexts,
+        context_parameters,
+    );
+
+    let normalizer: T = compute_normalizer(env, &possible_actions, &pcs, &active_contexts);
+
+    let mut chosen_action = possible_actions[0].clone();
+    let mut best_probability: T = T::one();
+    for (act_idx, act) in possible_actions.iter().enumerate() {
+        let mut product_mix: T = T::one();
+        for (ctx_mutex_idx, _ctx_id) in active_contexts.iter().enumerate() {
+            product_mix.inplace_mul(&pcs[ctx_mutex_idx + act_idx * active_contexts.len()]);
+        }
+        product_mix.inplace_mul(&normalizer);
+
+        let mut action_probability: T = T::one();
+        let mut e_mix_div_card = context_parameters.e_mix.clone();
+        e_mix_div_card.inplace_div(&T::from_usize(nactions));
+        action_probability.inplace_mul(&product_mix);
+        if action_probability <= best_probability {
+            best_probability = action_probability;
+            chosen_action = act.clone();
+        }
+    }
+    Some(chosen_action)
+}
+
+fn compute_pcs<T: ContextModelNumber, Env: ContextModelable>(
+    env: &Env,
+    pcs: &mut Vec<T>,
+    possible_actions: &[Env::Action],
+    active_contexts: &[usize],
+    context_parameters: &ContextModelParameters<T>,
+) {
+    pcs.truncate(0);
+    for act in possible_actions.iter() {
+        for (ctx_mutex_idx, ctx_id) in active_contexts.iter().enumerate() {
+            pcs.push(pc(
+                env,
+                &context_parameters.context_parameters[ctx_mutex_idx],
+                act,
+                ctx_id,
+            ));
+        }
+    }
+}
+
 /// Given a Levin Tree Search model, executes a search with given budget.
 ///
 /// Returns either the found solution, or a handle that can be used to continue the search.
@@ -299,17 +378,13 @@ where
         possible_actions.truncate(0);
         env.possible_actions(new_state, &mut possible_actions);
 
-        pcs.truncate(0);
-        for act in possible_actions.iter() {
-            for (ctx_mutex_idx, ctx_id) in active_contexts.iter().enumerate() {
-                pcs.push(pc(
-                    env,
-                    &context_parameters.context_parameters[ctx_mutex_idx],
-                    act,
-                    ctx_id,
-                ));
-            }
-        }
+        compute_pcs::<T, Env>(
+            env,
+            &mut pcs,
+            &possible_actions,
+            &active_contexts,
+            context_parameters,
+        );
 
         let normalizer: T = compute_normalizer(env, &possible_actions, &pcs, &active_contexts);
         for (act_idx, act) in possible_actions.drain(0..).enumerate() {
